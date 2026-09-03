@@ -100,7 +100,6 @@
             padding-bottom: 4px;
         }
 
-        /* Loading Spinner */
         .spinner {
             display: none;
             text-align: center;
@@ -180,14 +179,13 @@
         <div class="review-list" id="reviewContent"></div>
         <div id="loadingText" class="spinner">Mengirim data ke sistem... Mohon tunggu.</div>
         <div class="modal-actions" id="modalButtons">
-            <button class="btn btn-secondary" onclick="closeModal()">Edit</button>
-            <button class="btn btn-success" onclick="confirmAndSubmit()">Kirim Pendaftaran</button>
+            <button type="button" class="btn btn-secondary" onclick="closeModal()">Edit</button>
+            <button type="button" class="btn btn-success" onclick="confirmAndSubmit()">Kirim Pendaftaran</button>
         </div>
     </div>
 </div>
 
 <script>
-    // MASUKKAN URL GOOGLE APPS SCRIPT ANDA DI SINI
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby6BWAmYZ2n2iy-x50ajIwG2w0lYSyVK5LQ-DzpLM26yTmgCOaXV8rnvDNWTl9iA2eW/exec";
 
     const dataJakartaTimur = {
@@ -294,11 +292,16 @@
         document.getElementById('loadingText').style.display = 'block';
         document.getElementById('modalButtons').style.display = 'none';
 
+        const formData = new URLSearchParams();
+        for (const key in payload) {
+            formData.append(key, payload[key]);
+        }
+
         fetch(SCRIPT_URL, {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData.toString()
         })
         .then(() => {
             alert('Pendaftaran Berhasil! Terima kasih.');
