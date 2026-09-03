@@ -1,1 +1,0 @@
-# Penpol-psi-jaktim-sep-26
