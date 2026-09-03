@@ -123,8 +123,7 @@
 </div>
 
 <script>
-    // MASUKKAN URL GOOGLE APPS SCRIPT ANDA DI SINI
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby6BWAmYZ2n2iy-x50ajIwG2w0lYSyVK5LQ-DzpLM26yTmgCOaXV8rnvDNWTl9iA2eW/exec"; // Ganti dengan URL milik Anda
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby6BWAmYZ2n2iy-x50ajIwG2w0lYSyVK5LQ-DzpLM26yTmgCOaXV8rnvDNWTl9iA2eW/exec";
     let listPeserta = [];
 
     window.onload = function() {
@@ -134,16 +133,20 @@
     function loadData() {
         document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" style="text-align:center;">Memuat data...</td></tr>';
         
-        fetch(SCRIPT_URL)
+        fetch(SCRIPT_URL + "?action=getData")
         .then(res => res.json())
         .then(response => {
-            if (response.result === 'success') {
+            if (Array.isArray(response)) {
+                listPeserta = response;
+            } else if (response.result === 'success' && Array.isArray(response.data)) {
                 listPeserta = response.data;
-                renderTable(listPeserta);
+            } else {
+                listPeserta = [];
             }
+            renderTable(listPeserta);
         })
         .catch(err => {
-            alert('Gagal mengambil data dari Google Sheets.');
+            document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">Gagal mengambil data dari Google Sheets. Pastikan Web App di-deploy dengan opsi "Anyone".</td></tr>';
             console.error(err);
         });
     }
@@ -158,21 +161,31 @@
         }
 
         data.forEach((p, idx) => {
-            const statusBadge = p.statusHadir 
+            // Pencocokan fleksibel nama atribut header
+            const nama = p["Nama Lengkap"] || p.nama || "-";
+            const email = p["Alamat Email"] || p.email || "";
+            const noHp = p["No. Hp"] || p["No HP"] || p.noHp || "-";
+            const kec = p["Kecamatan"] || p.kecamatan || "";
+            const kel = p["Kelurahan"] || p.kelurahan || "";
+            const pengurus = p["Tingkat Pengurus"] || p.pengurus || "";
+            const jabatan = p["Jabatan"] || p.jabatan || "";
+            const statusHadir = p["Status"] === "Hadir" || p.statusHadir === true;
+
+            const statusBadge = statusHadir 
                 ? '<span class="badge badge-success">Hadir</span>' 
                 : '<span class="badge badge-warning">Belum Hadir</span>';
 
-            const actionBtn = p.statusHadir
+            const actionBtn = statusHadir
                 ? `<button class="btn btn-disabled" disabled>Sudah Hadir</button>`
                 : `<button class="btn btn-success" onclick="markAttendance(${idx})">Klik Hadir</button>`;
 
             tbody.innerHTML += `
                 <tr>
                     <td>${idx + 1}</td>
-                    <td><strong>${p.nama}</strong><br><small>${p.email}</small></td>
-                    <td>${p.noHp}</td>
-                    <td>Kec. ${p.kecamatan}<br>Kel. ${p.kelurahan}</td>
-                    <td>${p.pengurus} - ${p.jabatan}</td>
+                    <td><strong>${nama}</strong><br><small>${email}</small></td>
+                    <td>${noHp}</td>
+                    <td>Kec. ${kec}<br>Kel. ${kel}</td>
+                    <td>${pengurus} - ${jabatan}</td>
                     <td>${statusBadge}</td>
                     <td>${actionBtn}</td>
                 </tr>
@@ -182,16 +195,17 @@
 
     function markAttendance(index) {
         const peserta = listPeserta[index];
+        const namaPeserta = peserta["Nama Lengkap"] || peserta.nama || "Peserta";
 
-        if (confirm(`Konfirmasi kehadiran untuk: ${peserta.nama}?`)) {
+        if (confirm(`Konfirmasi kehadiran untuk: ${namaPeserta}?`)) {
             const payload = {
                 action: 'absensi',
-                nama: peserta.nama,
-                noHp: peserta.noHp,
-                pengurus: peserta.pengurus,
-                jabatan: peserta.jabatan,
-                kecamatan: peserta.kecamatan,
-                kelurahan: peserta.kelurahan
+                nama: namaPeserta,
+                noHp: peserta["No. Hp"] || peserta.noHp || "",
+                pengurus: peserta["Tingkat Pengurus"] || peserta.pengurus || "",
+                jabatan: peserta["Jabatan"] || peserta.jabatan || "",
+                kecamatan: peserta["Kecamatan"] || peserta.kecamatan || "",
+                kelurahan: peserta["Kelurahan"] || peserta.kelurahan || ""
             };
 
             const formData = new URLSearchParams();
@@ -206,7 +220,7 @@
                 body: formData.toString()
             })
             .then(() => {
-                alert(`Kehadiran ${peserta.nama} berhasil dicatat! Data tersimpan di Sheet "Kehadiran".`);
+                alert(`Kehadiran ${namaPeserta} berhasil dicatat!`);
                 loadData();
             })
             .catch(err => alert('Gagal mencatat kehadiran.'));
@@ -215,10 +229,11 @@
 
     function filterData() {
         const query = document.getElementById('searchInput').value.toLowerCase();
-        const filtered = listPeserta.filter(p => 
-            p.nama.toLowerCase().includes(query) || 
-            p.noHp.includes(query)
-        );
+        const filtered = listPeserta.filter(p => {
+            const nama = (p["Nama Lengkap"] || p.nama || "").toLowerCase();
+            const hp = (p["No. Hp"] || p.noHp || "").toLowerCase();
+            return nama.includes(query) || hp.includes(query);
+        });
         renderTable(filtered);
     }
 </script>
