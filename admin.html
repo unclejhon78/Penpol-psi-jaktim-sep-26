@@ -13,7 +13,7 @@
         }
 
         .container {
-            max-width: 1000px;
+            max-width: 1050px;
             margin: 0 auto;
             background: #ffffff;
             padding: 25px;
@@ -77,15 +77,17 @@
         .btn-disabled { background-color: #6c757d; color: white; cursor: not-allowed; }
 
         .badge {
-            padding: 4px 8px;
+            padding: 5px 10px;
             border-radius: 4px;
             font-size: 12px;
             color: white;
             font-weight: bold;
+            display: inline-block;
         }
 
         .badge-success { background-color: #28a745; }
         .badge-warning { background-color: #ffc107; color: #333; }
+        .badge-info { background-color: #17a2b8; }
     </style>
 </head>
 <body>
@@ -110,8 +112,8 @@
                 <th>No HP</th>
                 <th>Wilayah</th>
                 <th>Pengurus & Jabatan</th>
-                <th>Status</th>
-                <th>Aksi Absensi</th>
+                <th>Status Kehadiran</th>
+                <th>Aksi Verifikasi</th>
             </tr>
         </thead>
         <tbody id="tableBody">
@@ -161,7 +163,6 @@
         }
 
         data.forEach((p, idx) => {
-            // Pencocokan fleksibel nama atribut header
             const nama = p["Nama Lengkap"] || p.nama || "-";
             const email = p["Alamat Email"] || p.email || "";
             const noHp = p["No. Hp"] || p["No HP"] || p.noHp || "-";
@@ -169,15 +170,17 @@
             const kel = p["Kelurahan"] || p.kelurahan || "";
             const pengurus = p["Tingkat Pengurus"] || p.pengurus || "";
             const jabatan = p["Jabatan"] || p.jabatan || "";
-            const statusHadir = p["Status"] === "Hadir" || p.statusHadir === true;
+            
+            // Cek apakah sudah hadir
+            const isHadir = p["Status"] === "Hadir" || p["Status"] === "Hadir (Terverifikasi)" || p.statusHadir === true;
 
-            const statusBadge = statusHadir 
-                ? '<span class="badge badge-success">Hadir</span>' 
+            const statusBadge = isHadir 
+                ? '<span class="badge badge-success">✔ Terverifikasi Hadir</span>' 
                 : '<span class="badge badge-warning">Belum Hadir</span>';
 
-            const actionBtn = statusHadir
-                ? `<button class="btn btn-disabled" disabled>Sudah Hadir</button>`
-                : `<button class="btn btn-success" onclick="markAttendance(${idx})">Klik Hadir</button>`;
+            const actionBtn = isHadir
+                ? `<button class="btn btn-disabled" disabled>Sudah Absen</button>`
+                : `<button class="btn btn-success" id="btn-${idx}" onclick="markAttendance(${idx})">Verifikasi Hadir</button>`;
 
             tbody.innerHTML += `
                 <tr>
@@ -186,7 +189,7 @@
                     <td>${noHp}</td>
                     <td>Kec. ${kec}<br>Kel. ${kel}</td>
                     <td>${pengurus} - ${jabatan}</td>
-                    <td>${statusBadge}</td>
+                    <td id="status-${idx}">${statusBadge}</td>
                     <td>${actionBtn}</td>
                 </tr>
             `;
@@ -198,6 +201,13 @@
         const namaPeserta = peserta["Nama Lengkap"] || peserta.nama || "Peserta";
 
         if (confirm(`Konfirmasi kehadiran untuk: ${namaPeserta}?`)) {
+            const btn = document.getElementById(`btn-${index}`);
+            const statusCell = document.getElementById(`status-${index}`);
+
+            // Matikan tombol sementara saat proses pengiriman
+            btn.disabled = true;
+            btn.innerText = "Proses...";
+
             const payload = {
                 action: 'absensi',
                 nama: namaPeserta,
@@ -220,10 +230,21 @@
                 body: formData.toString()
             })
             .then(() => {
-                alert(`Kehadiran ${namaPeserta} berhasil dicatat!`);
-                loadData();
+                alert(`Kehadiran ${namaPeserta} berhasil dicatat di Sheet Kehadiran!`);
+                
+                // Ubah status & tombol secara langsung di tampilan tanpa harus refresh total
+                statusCell.innerHTML = '<span class="badge badge-success">✔ Terverifikasi Hadir</span>';
+                btn.className = "btn btn-disabled";
+                btn.innerText = "Sudah Absen";
+                
+                // Tandai di variabel lokal
+                listPeserta[index]["Status"] = "Hadir";
             })
-            .catch(err => alert('Gagal mencatat kehadiran.'));
+            .catch(err => {
+                alert('Gagal mencatat kehadiran.');
+                btn.disabled = false;
+                btn.innerText = "Verifikasi Hadir";
+            });
         }
     }
 
