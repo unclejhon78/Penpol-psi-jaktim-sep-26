@@ -124,7 +124,7 @@
 
 <script>
     // MASUKKAN URL GOOGLE APPS SCRIPT ANDA DI SINI
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNlECyDS2S6g57dcd31kWL1_EXkrgwzxm3NULV5vIxxRuaPpKQzsduWbsvNW4_FSMh/exec"; // Ganti dengan URL milik Anda
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby6BWAmYZ2n2iy-x50ajIwG2w0lYSyVK5LQ-DzpLM26yTmgCOaXV8rnvDNWTl9iA2eW/exec"; // Ganti dengan URL milik Anda
     let listPeserta = [];
 
     window.onload = function() {
