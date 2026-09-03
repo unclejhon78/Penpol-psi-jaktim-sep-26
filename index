@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pendaftaran Seminar Online</title>
+    <style>
+        :root {
+            --primary-color: #0056b3;
+            --secondary-color: #28a745;
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            padding: 25px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        h2, h3 {
+            text-align: center;
+            color: var(--primary-color);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+
+        .btn {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .btn-success { background-color: var(--secondary-color); }
+        .btn-secondary { background-color: #6c757d; }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 480px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .review-list p {
+            margin: 8px 0;
+            border-bottom: 1px dashed #eee;
+            padding-bottom: 4px;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            display: none;
+            text-align: center;
+            margin-top: 10px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Form Pendaftaran Seminar</h2>
+    <form id="registrationForm" onsubmit="handleReview(event)">
+        <div class="form-group">
+            <label>Nama Lengkap:</label>
+            <input type="text" id="nama" required>
+        </div>
+
+        <div class="form-group">
+            <label>Jenis Kelamin:</label>
+            <select id="jenisKelamin" required>
+                <option value="">-- Pilih Jenis Kelamin --</option>
+                <option value="Laki-laki">Laki-laki</option>
+                <option value="Perempuan">Perempuan</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>No. HP / WhatsApp:</label>
+            <input type="tel" id="noHp" placeholder="08xxxxxxxxxx" required>
+        </div>
+
+        <div class="form-group">
+            <label>Alamat Email:</label>
+            <input type="email" id="email" required>
+        </div>
+
+        <div class="form-group">
+            <label>Kecamatan (Jakarta Timur):</label>
+            <select id="kecamatan" onchange="updateKelurahan()" required>
+                <option value="">-- Pilih Kecamatan --</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Kelurahan:</label>
+            <select id="kelurahan" required disabled>
+                <option value="">-- Pilih Kecamatan Terlebih Dahulu --</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Pengurus Tingkat:</label>
+            <select id="pengurus" onchange="updateJabatan()" required>
+                <option value="">-- Pilih Pengurus --</option>
+                <option value="DPRt">DPRt</option>
+                <option value="DPC">DPC</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Jabatan:</label>
+            <select id="jabatan" required disabled>
+                <option value="">-- Pilih Pengurus Terlebih Dahulu --</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn">Tinjau Data</button>
+    </form>
+</div>
+
+<!-- POP-UP MODAL REVIEW -->
+<div id="reviewModal" class="modal">
+    <div class="modal-content">
+        <h3>Review Pendaftaran</h3>
+        <div class="review-list" id="reviewContent"></div>
+        <div id="loadingText" class="spinner">Mengirim data ke sistem... Mohon tunggu.</div>
+        <div class="modal-actions" id="modalButtons">
+            <button class="btn btn-secondary" onclick="closeModal()">Edit</button>
+            <button class="btn btn-success" onclick="confirmAndSubmit()">Kirim Pendaftaran</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // MASUKKAN URL GOOGLE APPS SCRIPT ANDA DI SINI
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNlECyDS2S6g57dcd31kWL1_EXkrgwzxm3NULV5vIxxRuaPpKQzsduWbsvNW4_FSMh/exec";
+
+    const dataJakartaTimur = {
+        "Cakung": ["Cakung Barat", "Cakung Timur", "Jatinegara", "Penggilingan", "Pulo Gebang", "Rawa Terate", "Ujung Menteng"],
+        "Cipayung": ["Bambu Apus", "Ceger", "Cilangkap", "Cipayung", "Lubang Buaya", "Munjul", "Pondok Ranggon", "Setu"],
+        "Ciracas": ["Cibubur", "Ciracas", "Kelapa Dua Wetan", "Rambutan", "Susukan"],
+        "Duren Sawit": ["Duren Sawit", "Pondok Bambu", "Pondok Kelapa", "Pondok Kopi", "Malaka Jaya", "Malaka Sari", "Klender"],
+        "Jatinegara": ["Bali Mester", "Bidara Cina", "Cipinang Cempedak", "Cipinang Besar Selatan", "Cipinang Besar Utara", "Cipinang Muara", "Kampung Melayu", "Rawa Bunga"],
+        "Kramat Jati": ["Balekambang", "Batu Ampar", "Cawang", "Cililitan", "Dukuh", "Kramat Jati", "Tengah"],
+        "Makasar": ["Cipinang Melayu", "Kebon Pala", "Makasar", "Pinang Ranti", "Halim Perdanakusuma"],
+        "Matraman": ["Kayu Manis", "Kebon Manggis", "Pal Meriam", "Pisangan Baru", "Utan Kayu Selatan", "Utan Kayu Utara"],
+        "Pasar Rebo": ["Baru", "Cijantung", "Gedong", "Kalisari", "Pekanbaru"],
+        "Pulo Gadung": ["Jatinegara", "Jati", "Kayu Putih", "Pisangan Timur", "Pulo Gadung", "Rawamangun"]
+    };
+
+    const dataJabatan = {
+        "DPRt": ["Ketua", "Wakil Ketua 1", "Wakil Ketua 2", "Sekretaris", "Wakil Sekretaris", "Bendahara", "Wakil Bendahara", "Koord.W", "Koord.T", "Koord TPS"],
+        "DPC": ["Ketua", "Sekretaris", "Wakil Sekretaris", "Bendahara", "Wakil Bendahara", "OKK", "BAPILU", "Badan Saksi", "IT & Digital", "UMKM"]
+    };
+
+    let payload = {};
+
+    window.onload = function() {
+        const kecSelect = document.getElementById('kecamatan');
+        Object.keys(dataJakartaTimur).forEach(kec => {
+            let opt = document.createElement('option');
+            opt.value = kec;
+            opt.innerHTML = kec;
+            kecSelect.appendChild(opt);
+        });
+    };
+
+    function updateKelurahan() {
+        const kec = document.getElementById('kecamatan').value;
+        const kelSelect = document.getElementById('kelurahan');
+        kelSelect.innerHTML = '<option value="">-- Pilih Kelurahan --</option>';
+
+        if (kec && dataJakartaTimur[kec]) {
+            kelSelect.disabled = false;
+            dataJakartaTimur[kec].forEach(kel => {
+                let opt = document.createElement('option');
+                opt.value = kel;
+                opt.innerHTML = kel;
+                kelSelect.appendChild(opt);
+            });
+        } else {
+            kelSelect.disabled = true;
+        }
+    }
+
+    function updateJabatan() {
+        const pengurus = document.getElementById('pengurus').value;
+        const jabSelect = document.getElementById('jabatan');
+        jabSelect.innerHTML = '<option value="">-- Pilih Jabatan --</option>';
+
+        if (pengurus && dataJabatan[pengurus]) {
+            jabSelect.disabled = false;
+            dataJabatan[pengurus].forEach(jab => {
+                let opt = document.createElement('option');
+                opt.value = jab;
+                opt.innerHTML = jab;
+                jabSelect.appendChild(opt);
+            });
+        } else {
+            jabSelect.disabled = true;
+        }
+    }
+
+    function handleReview(e) {
+        e.preventDefault();
+        
+        payload = {
+            action: 'daftar',
+            nama: document.getElementById('nama').value,
+            jenisKelamin: document.getElementById('jenisKelamin').value,
+            noHp: document.getElementById('noHp').value,
+            email: document.getElementById('email').value,
+            kecamatan: document.getElementById('kecamatan').value,
+            kelurahan: document.getElementById('kelurahan').value,
+            pengurus: document.getElementById('pengurus').value,
+            jabatan: document.getElementById('jabatan').value
+        };
+
+        const reviewHtml = `
+            <p><strong>Nama:</strong> ${payload.nama}</p>
+            <p><strong>Jenis Kelamin:</strong> ${payload.jenisKelamin}</p>
+            <p><strong>No. HP:</strong> ${payload.noHp}</p>
+            <p><strong>Email:</strong> ${payload.email}</p>
+            <p><strong>Kecamatan:</strong> ${payload.kecamatan}</p>
+            <p><strong>Kelurahan:</strong> ${payload.kelurahan}</p>
+            <p><strong>Pengurus:</strong> ${payload.pengurus}</p>
+            <p><strong>Jabatan:</strong> ${payload.jabatan}</p>
+        `;
+
+        document.getElementById('reviewContent').innerHTML = reviewHtml;
+        document.getElementById('reviewModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('reviewModal').style.display = 'none';
+    }
+
+    function confirmAndSubmit() {
+        document.getElementById('loadingText').style.display = 'block';
+        document.getElementById('modalButtons').style.display = 'none';
+
+        fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(() => {
+            alert('Pendaftaran Berhasil! Terima kasih.');
+            document.getElementById('registrationForm').reset();
+            document.getElementById('kelurahan').disabled = true;
+            document.getElementById('jabatan').disabled = true;
+            closeModal();
+        })
+        .catch(err => {
+            alert('Terjadi kesalahan. Silakan coba lagi.');
+            console.error(err);
+        })
+        .finally(() => {
+            document.getElementById('loadingText').style.display = 'none';
+            document.getElementById('modalButtons').style.display = 'flex';
+        });
+    }
+</script>
+
+</body>
+</html>
