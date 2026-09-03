@@ -100,7 +100,7 @@
         </div>
         <div class="search-box">
             <input type="text" id="searchInput" onkeyup="filterData()" placeholder="Cari nama / no HP...">
-            <button class="btn btn-primary" onclick="loadData()">Refresh Data</button>
+            <button id="btnRefresh" class="btn btn-primary" onclick="handleManualRefresh()">Refresh Data</button>
         </div>
     </div>
 
@@ -126,34 +126,101 @@
 
 <script>
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwd86Kt51T7VhgQFFOhsbY1J-JMlZK7NDzrULQPQn4VsTOLzMVj1DGKSyttmjFodpiL/exec";
-    let listPeserta = []; // Menggunakan satu nama variabel global yang konsisten
+    let listPeserta = [];
 
-    // Fungsi utama mengambil data dari Google Sheets
+    // 1. Ambil data saat halaman terbuka (Tampil Instan dari Cache jika ada)
     async function loadData() {
         const tableBody = document.getElementById('tableBody');
-        if (tableBody) {
-            tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Memuat data dari Google Sheets...</td></tr>';
+
+        // Coba tampilkan data dari Cache lokal terlebih dahulu agar super cepat (0 detik)
+        const cachedData = localStorage.getItem('cachePeserta');
+        if (cachedData) {
+            try {
+                listPeserta = JSON.parse(cachedData);
+                renderTable(listPeserta);
+            } catch(e) {}
+        } else {
+            if (tableBody) {
+                tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Memuat data dari Google Sheets...</td></tr>';
+            }
         }
 
+        // Ambil data paling segar dari server secara background
         try {
             const response = await fetch(SCRIPT_URL, {
                 method: 'GET',
                 redirect: 'follow'
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
             const data = await response.json();
             listPeserta = Array.isArray(data) ? data : (data.data || []);
+
+            // Simpan data terbaru ke Cache
+            localStorage.setItem('cachePeserta', JSON.stringify(listPeserta));
+
+            // Render ulang tabel dengan data paling baru
             renderTable(listPeserta);
         } catch (error) {
-            console.error("Gagal mengambil data:", error);
-            if (tableBody) {
+            console.error("Gagal mengambil data latar belakang:", error);
+            if (!cachedData && tableBody) {
                 tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">Gagal mengambil data. Pastikan Web App di-deploy dengan opsi "Anyone".</td></tr>';
             }
-            alert("Gagal mengambil data dari Google Sheets. Pastikan URL Web App sudah benar dan berakhiran /exec.");
+        }
+    }
+
+    // 2. Fungsi Khusus Tombol Refresh Biru (Mencegah Lag / Error Timeout)
+    async function handleManualRefresh() {
+        const tableBody = document.getElementById('tableBody');
+        const btnRefresh = document.getElementById('btnRefresh');
+
+        if (btnRefresh) {
+            btnRefresh.disabled = true;
+            btnRefresh.innerText = "Memuat...";
+        }
+        if (tableBody) {
+            tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Memperbarui data dari Google Sheets...</td></tr>';
+        }
+
+        try {
+            // Trik timestamp agar request melewati cache perantara Google
+            const freshUrl = SCRIPT_URL + "?t=" + new Date().getTime();
+            
+            const response = await fetch(freshUrl, {
+                method: 'GET',
+                redirect: 'follow'
+            });
+
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+            const data = await response.json();
+            listPeserta = Array.isArray(data) ? data : (data.data || []);
+
+            // Simpan ke Cache
+            localStorage.setItem('cachePeserta', JSON.stringify(listPeserta));
+
+            renderTable(listPeserta);
+
+        } catch (error) {
+            console.error("Gagal refresh manual:", error);
+            
+            // Jika server sibuk, fallback ke cache agar tidak eror merah
+            const cachedData = localStorage.getItem('cachePeserta');
+            if (cachedData) {
+                listPeserta = JSON.parse(cachedData);
+                renderTable(listPeserta);
+                alert("Koneksi ke Google Sheets sedang sibuk. Menampilkan data terakhir.");
+            } else {
+                if (tableBody) {
+                    tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">Gagal memperbarui data. Coba klik tombol refresh sekali lagi.</td></tr>';
+                }
+            }
+        } finally {
+            if (btnRefresh) {
+                btnRefresh.disabled = false;
+                btnRefresh.innerText = "Refresh Data";
+            }
         }
     }
 
@@ -173,7 +240,7 @@
             const nama = p["Nama Lengkap"] || p.nama || "-";
             const email = p["Alamat Email"] || p.email || "";
             
-            // Format nomor HP agar diawali angka 0
+            // Format nomor HP agar selalu diawali angka 0
             let rawHp = String(p["No. Hp"] || p["No HP"] || p.noHp || "-").trim();
             if (rawHp !== "-" && !rawHp.startsWith('0') && !rawHp.startsWith('62')) {
                 rawHp = '0' + rawHp;
@@ -185,7 +252,7 @@
             const pengurus = p["Tingkat Pengurus"] || p.pengurus || "";
             const jabatan = p["Jabatan"] || p.jabatan || "";
             
-            // Cek apakah sudah hadir
+            // Cek status kehadiran
             const isHadir = p["Status"] === "Hadir" || p["Status"] === "Hadir (Terverifikasi)" || p.statusHadir === true;
 
             const statusBadge = isHadir 
@@ -218,7 +285,6 @@
             const btn = document.getElementById(`btn-${index}`);
             const statusCell = document.getElementById(`status-${index}`);
 
-            // Matikan tombol sementara saat proses pengiriman
             btn.disabled = true;
             btn.innerText = "Proses...";
 
@@ -246,13 +312,13 @@
             .then(() => {
                 alert(`Kehadiran ${namaPeserta} berhasil dicatat di Sheet Kehadiran!`);
                 
-                // Ubah status & tombol secara langsung di tampilan
                 statusCell.innerHTML = '<span class="badge badge-success">✔ Terverifikasi Hadir</span>';
                 btn.className = "btn btn-disabled";
                 btn.innerText = "Sudah Absen";
                 
-                // Tandai di variabel lokal
+                // Perbarui status di variabel & cache lokal
                 listPeserta[index]["Status"] = "Hadir (Terverifikasi)";
+                localStorage.setItem('cachePeserta', JSON.stringify(listPeserta));
             })
             .catch(err => {
                 alert('Gagal mencatat kehadiran.');
