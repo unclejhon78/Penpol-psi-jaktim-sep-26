@@ -126,32 +126,39 @@
 
 <script>
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwd86Kt51T7VhgQFFOhsbY1J-JMlZK7NDzrULQPQn4VsTOLzMVj1DGKSyttmjFodpiL/exec";
-    let listPeserta = [];
+    let listPeserta = []; // Menggunakan satu nama variabel global yang konsisten
 
-    window.onload = function() {
-        loadData();
-    };
+    // Fungsi utama mengambil data dari Google Sheets
+    async function loadData() {
+        const tableBody = document.getElementById('tableBody');
+        if (tableBody) {
+            tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Memuat data dari Google Sheets...</td></tr>';
+        }
 
-    function loadData() {
-        document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" style="text-align:center;">Memuat data...</td></tr>';
-        
-        fetch(SCRIPT_URL + "?action=getData")
-        .then(res => res.json())
-        .then(response => {
-            if (Array.isArray(response)) {
-                listPeserta = response;
-            } else if (response.result === 'success' && Array.isArray(response.data)) {
-                listPeserta = response.data;
-            } else {
-                listPeserta = [];
+        try {
+            const response = await fetch(SCRIPT_URL, {
+                method: 'GET',
+                redirect: 'follow'
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
+
+            const data = await response.json();
+            listPeserta = Array.isArray(data) ? data : (data.data || []);
             renderTable(listPeserta);
-        })
-        .catch(err => {
-            document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">Gagal mengambil data dari Google Sheets. Pastikan Web App di-deploy dengan opsi "Anyone".</td></tr>';
-            console.error(err);
-        });
+        } catch (error) {
+            console.error("Gagal mengambil data:", error);
+            if (tableBody) {
+                tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">Gagal mengambil data. Pastikan Web App di-deploy dengan opsi "Anyone".</td></tr>';
+            }
+            alert("Gagal mengambil data dari Google Sheets. Pastikan URL Web App sudah benar dan berakhiran /exec.");
+        }
     }
+
+    // Panggil loadData saat halaman selesai dimuat
+    document.addEventListener('DOMContentLoaded', loadData);
 
     function renderTable(data) {
         const tbody = document.getElementById('tableBody');
@@ -165,11 +172,14 @@
         data.forEach((p, idx) => {
             const nama = p["Nama Lengkap"] || p.nama || "-";
             const email = p["Alamat Email"] || p.email || "";
+            
+            // Format nomor HP agar diawali angka 0
             let rawHp = String(p["No. Hp"] || p["No HP"] || p.noHp || "-").trim();
-        if (rawHp !== "-" && !rawHp.startsWith('0') && !rawHp.startsWith('62')) {
-            rawHp = '0' + rawHp;
-        }
-        const noHp = rawHp;
+            if (rawHp !== "-" && !rawHp.startsWith('0') && !rawHp.startsWith('62')) {
+                rawHp = '0' + rawHp;
+            }
+            const noHp = rawHp;
+
             const kec = p["Kecamatan"] || p.kecamatan || "";
             const kel = p["Kelurahan"] || p.kelurahan || "";
             const pengurus = p["Tingkat Pengurus"] || p.pengurus || "";
@@ -236,13 +246,13 @@
             .then(() => {
                 alert(`Kehadiran ${namaPeserta} berhasil dicatat di Sheet Kehadiran!`);
                 
-                // Ubah status & tombol secara langsung di tampilan tanpa harus refresh total
+                // Ubah status & tombol secara langsung di tampilan
                 statusCell.innerHTML = '<span class="badge badge-success">✔ Terverifikasi Hadir</span>';
                 btn.className = "btn btn-disabled";
                 btn.innerText = "Sudah Absen";
                 
                 // Tandai di variabel lokal
-                listPeserta[index]["Status"] = "Hadir";
+                listPeserta[index]["Status"] = "Hadir (Terverifikasi)";
             })
             .catch(err => {
                 alert('Gagal mencatat kehadiran.');
@@ -256,7 +266,7 @@
         const query = document.getElementById('searchInput').value.toLowerCase();
         const filtered = listPeserta.filter(p => {
             const nama = (p["Nama Lengkap"] || p.nama || "").toLowerCase();
-            const hp = (p["No. Hp"] || p.noHp || "").toLowerCase();
+            const hp = String(p["No. Hp"] || p.noHp || "").toLowerCase();
             return nama.includes(query) || hp.includes(query);
         });
         renderTable(filtered);
