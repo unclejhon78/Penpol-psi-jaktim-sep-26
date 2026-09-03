@@ -188,7 +188,7 @@
 
 <script>
     // MASUKKAN URL GOOGLE APPS SCRIPT ANDA DI SINI
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNlECyDS2S6g57dcd31kWL1_EXkrgwzxm3NULV5vIxxRuaPpKQzsduWbsvNW4_FSMh/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby6BWAmYZ2n2iy-x50ajIwG2w0lYSyVK5LQ-DzpLM26yTmgCOaXV8rnvDNWTl9iA2eW/exec";
 
     const dataJakartaTimur = {
         "Cakung": ["Cakung Barat", "Cakung Timur", "Jatinegara", "Penggilingan", "Pulo Gebang", "Rawa Terate", "Ujung Menteng"],
