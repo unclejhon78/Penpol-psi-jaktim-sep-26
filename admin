@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portal Admin - Absensi Seminar</title>
+    <title>Portal Admin Absensi - Penpol PSI Jaktim</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -22,7 +22,7 @@
         }
 
         h2 {
-            color: #0056b3;
+            color: #e31b23;
             margin-bottom: 5px;
         }
 
@@ -32,6 +32,11 @@
             align-items: center;
             margin-bottom: 20px;
             flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .search-box {
+            display: flex;
             gap: 10px;
         }
 
@@ -68,6 +73,7 @@
         }
 
         .btn-success { background-color: #28a745; color: white; }
+        .btn-primary { background-color: #0056b3; color: white; }
         .btn-disabled { background-color: #6c757d; color: white; cursor: not-allowed; }
 
         .badge {
@@ -87,12 +93,12 @@
 <div class="container">
     <div class="header-bar">
         <div>
-            <h2>Portal Admin - Registrasi Ulang (Hari H)</h2>
-            <small>Data disinkronkan secara realtime dengan Google Sheets</small>
+            <h2>Portal Admin Registrasi Ulang Hari H</h2>
+            <small>Sinkronisasi Otomatis dengan Google Sheets</small>
         </div>
-        <div>
+        <div class="search-box">
             <input type="text" id="searchInput" onkeyup="filterData()" placeholder="Cari nama / no HP...">
-            <button class="btn btn-success" onclick="loadData()">Refresh Data</button>
+            <button class="btn btn-primary" onclick="loadData()">Refresh Data</button>
         </div>
     </div>
 
@@ -105,7 +111,7 @@
                 <th>Wilayah</th>
                 <th>Pengurus & Jabatan</th>
                 <th>Status</th>
-                <th>Aksi Reg. Ulang</th>
+                <th>Aksi Absensi</th>
             </tr>
         </thead>
         <tbody id="tableBody">
@@ -118,7 +124,7 @@
 
 <script>
     // MASUKKAN URL GOOGLE APPS SCRIPT ANDA DI SINI
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNlECyDS2S6g57dcd31kWL1_EXkrgwzxm3NULV5vIxxRuaPpKQzsduWbsvNW4_FSMh/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzNlECyDS2S6g57dcd31kWL1_EXkrgwzxm3NULV5vIxxRuaPpKQzsduWbsvNW4_FSMh/exec"; // Ganti dengan URL milik Anda
     let listPeserta = [];
 
     window.onload = function() {
@@ -137,7 +143,7 @@
             }
         })
         .catch(err => {
-            alert('Gagal mengambil data dari Google Sheets');
+            alert('Gagal mengambil data dari Google Sheets.');
             console.error(err);
         });
     }
@@ -146,7 +152,7 @@
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
 
-        if(data.length === 0) {
+        if (!data || data.length === 0) {
             tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Belum ada peserta terdaftar.</td></tr>';
             return;
         }
@@ -177,7 +183,7 @@
     function markAttendance(index) {
         const peserta = listPeserta[index];
 
-        if(confirm(`Konfirmasi kehadiran untuk: ${peserta.nama}?`)) {
+        if (confirm(`Konfirmasi kehadiran untuk: ${peserta.nama}?`)) {
             const payload = {
                 action: 'absensi',
                 nama: peserta.nama,
@@ -188,15 +194,20 @@
                 kelurahan: peserta.kelurahan
             };
 
+            const formData = new URLSearchParams();
+            for (const key in payload) {
+                formData.append(key, payload[key]);
+            }
+
             fetch(SCRIPT_URL, {
                 method: 'POST',
                 mode: 'no-cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData.toString()
             })
             .then(() => {
-                alert(`Kehadiran ${peserta.nama} berhasil dicatat! Data masuk ke Sheet "Kehadiran".`);
-                loadData(); // Auto refresh
+                alert(`Kehadiran ${peserta.nama} berhasil dicatat! Data tersimpan di Sheet "Kehadiran".`);
+                loadData();
             })
             .catch(err => alert('Gagal mencatat kehadiran.'));
         }
