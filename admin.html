@@ -165,7 +165,11 @@
         data.forEach((p, idx) => {
             const nama = p["Nama Lengkap"] || p.nama || "-";
             const email = p["Alamat Email"] || p.email || "";
-            const noHp = p["No. Hp"] || p["No HP"] || p.noHp || "-";
+            let rawHp = String(p["No. Hp"] || p["No HP"] || p.noHp || "-").trim();
+        if (rawHp !== "-" && !rawHp.startsWith('0') && !rawHp.startsWith('62')) {
+            rawHp = '0' + rawHp;
+        }
+        const noHp = rawHp;
             const kec = p["Kecamatan"] || p.kecamatan || "";
             const kel = p["Kelurahan"] || p.kelurahan || "";
             const pengurus = p["Tingkat Pengurus"] || p.pengurus || "";
