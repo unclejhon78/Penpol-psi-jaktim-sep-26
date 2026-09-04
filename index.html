@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pendaftaran Seminar Online</title>
+    
+    <!-- SUPABASE JS SDK CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <style>
         :root {
             --primary-color: #0056b3;
@@ -177,7 +181,7 @@
     <div class="modal-content">
         <h3>Review Pendaftaran</h3>
         <div class="review-list" id="reviewContent"></div>
-        <div id="loadingText" class="spinner">Mengirim data ke sistem... Mohon tunggu.</div>
+        <div id="loadingText" class="spinner">Mengirim data ke database... Mohon tunggu.</div>
         <div class="modal-actions" id="modalButtons">
             <button type="button" class="btn btn-secondary" onclick="closeModal()">Edit</button>
             <button type="button" class="btn btn-success" onclick="confirmAndSubmit()">Kirim Pendaftaran</button>
@@ -186,7 +190,10 @@
 </div>
 
 <script>
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwd86Kt51T7VhgQFFOhsbY1J-JMlZK7NDzrULQPQn4VsTOLzMVj1DGKSyttmjFodpiL/exec";
+    // CONFIG SUPABASE (GANTI SESUAI PROJECT SUPABASE KAMU)
+    const SUPABASE_URL = "https://egjmalhtyxtbmkplgrxu.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_BlAodQ8yw8NBX20vVhaTRA__wyTK_64";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const dataJakartaTimur = {
         "Cakung": ["Cakung Barat", "Cakung Timur", "Jatinegara", "Penggilingan", "Pulo Gebang", "Rawa Terate", "Ujung Menteng"],
@@ -258,21 +265,21 @@
         e.preventDefault();
         
         payload = {
-            action: 'daftar',
             nama: document.getElementById('nama').value,
-            jenisKelamin: document.getElementById('jenisKelamin').value,
-            noHp: document.getElementById('noHp').value,
+            jenis_kelamin: document.getElementById('jenisKelamin').value,
+            no_hp: document.getElementById('noHp').value,
             email: document.getElementById('email').value,
             kecamatan: document.getElementById('kecamatan').value,
             kelurahan: document.getElementById('kelurahan').value,
             pengurus: document.getElementById('pengurus').value,
-            jabatan: document.getElementById('jabatan').value
+            jabatan: document.getElementById('jabatan').value,
+            status: 'Belum Hadir'
         };
 
         const reviewHtml = `
             <p><strong>Nama:</strong> ${payload.nama}</p>
-            <p><strong>Jenis Kelamin:</strong> ${payload.jenisKelamin}</p>
-            <p><strong>No. HP:</strong> ${payload.noHp}</p>
+            <p><strong>Jenis Kelamin:</strong> ${payload.jenis_kelamin}</p>
+            <p><strong>No. HP:</strong> ${payload.no_hp}</p>
             <p><strong>Email:</strong> ${payload.email}</p>
             <p><strong>Kecamatan:</strong> ${payload.kecamatan}</p>
             <p><strong>Kelurahan:</strong> ${payload.kelurahan}</p>
@@ -288,36 +295,29 @@
         document.getElementById('reviewModal').style.display = 'none';
     }
 
-    function confirmAndSubmit() {
+    async function confirmAndSubmit() {
         document.getElementById('loadingText').style.display = 'block';
         document.getElementById('modalButtons').style.display = 'none';
 
-        const formData = new URLSearchParams();
-        for (const key in payload) {
-            formData.append(key, payload[key]);
-        }
+        try {
+            const { data, error } = await supabaseClient
+                .from('pendaftaran')
+                .insert([payload]);
 
-        fetch(SCRIPT_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: formData.toString()
-        })
-        .then(() => {
+            if (error) throw error;
+
             alert('Pendaftaran Berhasil! Terima kasih.');
             document.getElementById('registrationForm').reset();
             document.getElementById('kelurahan').disabled = true;
             document.getElementById('jabatan').disabled = true;
             closeModal();
-        })
-        .catch(err => {
-            alert('Terjadi kesalahan. Silakan coba lagi.');
+        } catch (err) {
+            alert('Terjadi kesalahan: ' + err.message);
             console.error(err);
-        })
-        .finally(() => {
+        } finally {
             document.getElementById('loadingText').style.display = 'none';
             document.getElementById('modalButtons').style.display = 'flex';
-        });
+        }
     }
 </script>
 
