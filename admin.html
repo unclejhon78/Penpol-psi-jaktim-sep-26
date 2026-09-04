@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal Admin Absensi - Penpol PSI Jaktim</title>
+    
+    <!-- SUPABASE JS SDK & SHEETJS EXCEL LIBRARY -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -44,7 +49,7 @@
             padding: 8px 12px;
             border: 1px solid #ccc;
             border-radius: 5px;
-            width: 250px;
+            width: 230px;
         }
 
         table {
@@ -74,6 +79,7 @@
 
         .btn-success { background-color: #28a745; color: white; }
         .btn-primary { background-color: #0056b3; color: white; }
+        .btn-excel { background-color: #1d6f42; color: white; }
         .btn-disabled { background-color: #6c757d; color: white; cursor: not-allowed; }
 
         .badge {
@@ -87,7 +93,6 @@
 
         .badge-success { background-color: #28a745; }
         .badge-warning { background-color: #ffc107; color: #333; }
-        .badge-info { background-color: #17a2b8; }
     </style>
 </head>
 <body>
@@ -96,11 +101,12 @@
     <div class="header-bar">
         <div>
             <h2>Portal Kehadiran Registrasi Ulang</h2>
-            <small>Sinkronisasi Otomatis dengan Data Pendaftaran</small>
+            <small>Database Supabase Real-Time</small>
         </div>
         <div class="search-box">
             <input type="text" id="searchInput" onkeyup="filterData()" placeholder="Cari nama / no HP...">
-            <button id="btnRefresh" class="btn btn-primary" onclick="handleManualRefresh()">Refresh Data</button>
+            <button id="btnRefresh" class="btn btn-primary" onclick="loadData()">Refresh Data</button>
+            <button class="btn btn-excel" onclick="exportToExcel()">Export Excel</button>
         </div>
     </div>
 
@@ -118,115 +124,50 @@
         </thead>
         <tbody id="tableBody">
             <tr>
-                <td colspan="7" style="text-align:center;">Memuat data dari Google Sheets...</td>
+                <td colspan="7" style="text-align:center;">Memuat data dari Supabase...</td>
             </tr>
         </tbody>
     </table>
 </div>
 
 <script>
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwd86Kt51T7VhgQFFOhsbY1J-JMlZK7NDzrULQPQn4VsTOLzMVj1DGKSyttmjFodpiL/exec";
+    // CONFIG SUPABASE (GANTI SESUAI PROJECT SUPABASE KAMU)
+    const SUPABASE_URL = "https://egjmalhtyxtbmkplgrxu.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_BlAodQ8yw8NBX20vVhaTRA__wyTK_64";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     let listPeserta = [];
 
-    // 1. Ambil data saat halaman terbuka (Tampil Instan dari Cache jika ada)
+    // 1. AMBIL DATA DARI SUPABASE
     async function loadData() {
         const tableBody = document.getElementById('tableBody');
-
-        // Coba tampilkan data dari Cache lokal terlebih dahulu agar super cepat (0 detik)
-        const cachedData = localStorage.getItem('cachePeserta');
-        if (cachedData) {
-            try {
-                listPeserta = JSON.parse(cachedData);
-                renderTable(listPeserta);
-            } catch(e) {}
-        } else {
-            if (tableBody) {
-                tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Memuat data dari Google Sheets...</td></tr>';
-            }
-        }
-
-        // Ambil data paling segar dari server secara background
-        try {
-            const response = await fetch(SCRIPT_URL, {
-                method: 'GET',
-                redirect: 'follow'
-            });
-
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-            const data = await response.json();
-            listPeserta = Array.isArray(data) ? data : (data.data || []);
-
-            // Simpan data terbaru ke Cache
-            localStorage.setItem('cachePeserta', JSON.stringify(listPeserta));
-
-            // Render ulang tabel dengan data paling baru
-            renderTable(listPeserta);
-        } catch (error) {
-            console.error("Gagal mengambil data latar belakang:", error);
-            if (!cachedData && tableBody) {
-                tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">Gagal mengambil data. Pastikan Web App di-deploy dengan opsi "Anyone".</td></tr>';
-            }
-        }
-    }
-
-    // 2. Fungsi Khusus Tombol Refresh Biru (Mencegah Lag / Error Timeout)
-    async function handleManualRefresh() {
-        const tableBody = document.getElementById('tableBody');
         const btnRefresh = document.getElementById('btnRefresh');
-
-        if (btnRefresh) {
-            btnRefresh.disabled = true;
-            btnRefresh.innerText = "Memuat...";
-        }
-        if (tableBody) {
-            tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Memperbarui data dari Google Sheets...</td></tr>';
-        }
+        
+        btnRefresh.disabled = true;
+        btnRefresh.innerText = "Memuat...";
 
         try {
-            // Trik timestamp agar request melewati cache perantara Google
-            const freshUrl = SCRIPT_URL + "?t=" + new Date().getTime();
-            
-            const response = await fetch(freshUrl, {
-                method: 'GET',
-                redirect: 'follow'
-            });
+            const { data, error } = await supabaseClient
+                .from('pendaftaran')
+                .select('*')
+                .order('created_at', { ascending: false });
 
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            if (error) throw error;
 
-            const data = await response.json();
-            listPeserta = Array.isArray(data) ? data : (data.data || []);
-
-            // Simpan ke Cache
-            localStorage.setItem('cachePeserta', JSON.stringify(listPeserta));
-
+            listPeserta = data;
             renderTable(listPeserta);
-
         } catch (error) {
-            console.error("Gagal refresh manual:", error);
-            
-            // Jika server sibuk, fallback ke cache agar tidak eror merah
-            const cachedData = localStorage.getItem('cachePeserta');
-            if (cachedData) {
-                listPeserta = JSON.parse(cachedData);
-                renderTable(listPeserta);
-                alert("Koneksi ke Google Sheets sedang sibuk. Menampilkan data terakhir.");
-            } else {
-                if (tableBody) {
-                    tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">Gagal memperbarui data. Coba klik tombol refresh sekali lagi.</td></tr>';
-                }
-            }
+            console.error("Gagal mengambil data:", error);
+            tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:red;">Gagal mengambil data: ${error.message}</td></tr>`;
         } finally {
-            if (btnRefresh) {
-                btnRefresh.disabled = false;
-                btnRefresh.innerText = "Refresh Data";
-            }
+            btnRefresh.disabled = false;
+            btnRefresh.innerText = "Refresh Data";
         }
     }
 
-    // Panggil loadData saat halaman selesai dimuat
     document.addEventListener('DOMContentLoaded', loadData);
 
+    // 2. RENDER TABLE
     function renderTable(data) {
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
@@ -237,23 +178,21 @@
         }
 
         data.forEach((p, idx) => {
-            const nama = p["Nama Lengkap"] || p.nama || "-";
-            const email = p["Alamat Email"] || p.email || "";
+            const nama = p.nama || "-";
+            const email = p.email || "";
             
-            // Format nomor HP agar selalu diawali angka 0
-            let rawHp = String(p["No. Hp"] || p["No HP"] || p.noHp || "-").trim();
+            let rawHp = String(p.no_hp || "-").trim();
             if (rawHp !== "-" && !rawHp.startsWith('0') && !rawHp.startsWith('62')) {
                 rawHp = '0' + rawHp;
             }
             const noHp = rawHp;
 
-            const kec = p["Kecamatan"] || p.kecamatan || "";
-            const kel = p["Kelurahan"] || p.kelurahan || "";
-            const pengurus = p["Tingkat Pengurus"] || p.pengurus || "";
-            const jabatan = p["Jabatan"] || p.jabatan || "";
+            const kec = p.kecamatan || "";
+            const kel = p.kelurahan || "";
+            const pengurus = p.pengurus || "";
+            const jabatan = p.jabatan || "";
             
-            // Cek status kehadiran
-            const isHadir = p["Status"] === "Hadir" || p["Status"] === "Hadir (Terverifikasi)" || p.statusHadir === true;
+            const isHadir = p.status === "Hadir" || p.status === "Hadir (Terverifikasi)";
 
             const statusBadge = isHadir 
                 ? '<span class="badge badge-success">✔ Terverifikasi Hadir</span>' 
@@ -261,7 +200,7 @@
 
             const actionBtn = isHadir
                 ? `<button class="btn btn-disabled" disabled>Sudah Absen</button>`
-                : `<button class="btn btn-success" id="btn-${idx}" onclick="markAttendance(${idx})">Verifikasi Hadir</button>`;
+                : `<button class="btn btn-success" id="btn-${p.id}" onclick="markAttendance(${p.id}, '${nama.replace(/'/g, "\\'")}')">Verifikasi Hadir</button>`;
 
             tbody.innerHTML += `
                 <tr>
@@ -270,72 +209,84 @@
                     <td>${noHp}</td>
                     <td>Kec. ${kec}<br>Kel. ${kel}</td>
                     <td>${pengurus} - ${jabatan}</td>
-                    <td id="status-${idx}">${statusBadge}</td>
+                    <td id="status-${p.id}">${statusBadge}</td>
                     <td>${actionBtn}</td>
                 </tr>
             `;
         });
     }
 
-    function markAttendance(index) {
-        const peserta = listPeserta[index];
-        const namaPeserta = peserta["Nama Lengkap"] || peserta.nama || "Peserta";
-
+    // 3. MARK ATTENDANCE
+    async function markAttendance(id, namaPeserta) {
         if (confirm(`Konfirmasi kehadiran untuk: ${namaPeserta}?`)) {
-            const btn = document.getElementById(`btn-${index}`);
-            const statusCell = document.getElementById(`status-${index}`);
+            const btn = document.getElementById(`btn-${id}`);
+            const statusCell = document.getElementById(`status-${id}`);
 
             btn.disabled = true;
             btn.innerText = "Proses...";
 
-            const payload = {
-                action: 'absensi',
-                nama: namaPeserta,
-                noHp: peserta["No. Hp"] || peserta.noHp || "",
-                pengurus: peserta["Tingkat Pengurus"] || peserta.pengurus || "",
-                jabatan: peserta["Jabatan"] || peserta.jabatan || "",
-                kecamatan: peserta["Kecamatan"] || peserta.kecamatan || "",
-                kelurahan: peserta["Kelurahan"] || peserta.kelurahan || ""
-            };
+            try {
+                const { error } = await supabaseClient
+                    .from('pendaftaran')
+                    .update({ status: 'Hadir (Terverifikasi)' })
+                    .eq('id', id);
 
-            const formData = new URLSearchParams();
-            for (const key in payload) {
-                formData.append(key, payload[key]);
-            }
+                if (error) throw error;
 
-            fetch(SCRIPT_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: formData.toString()
-            })
-            .then(() => {
-                alert(`Kehadiran ${namaPeserta} berhasil dicatat di Sheet Kehadiran!`);
-                
+                alert(`Kehadiran ${namaPeserta} berhasil dicatat!`);
                 statusCell.innerHTML = '<span class="badge badge-success">✔ Terverifikasi Hadir</span>';
                 btn.className = "btn btn-disabled";
                 btn.innerText = "Sudah Absen";
-                
-                // Perbarui status di variabel & cache lokal
-                listPeserta[index]["Status"] = "Hadir (Terverifikasi)";
-                localStorage.setItem('cachePeserta', JSON.stringify(listPeserta));
-            })
-            .catch(err => {
-                alert('Gagal mencatat kehadiran.');
+
+                const targetIndex = listPeserta.findIndex(p => p.id === id);
+                if(targetIndex !== -1) {
+                    listPeserta[targetIndex].status = 'Hadir (Terverifikasi)';
+                }
+            } catch (err) {
+                alert('Gagal mencatat kehadiran: ' + err.message);
                 btn.disabled = false;
                 btn.innerText = "Verifikasi Hadir";
-            });
+            }
         }
     }
 
+    // 4. FILTER SEARCH
     function filterData() {
         const query = document.getElementById('searchInput').value.toLowerCase();
         const filtered = listPeserta.filter(p => {
-            const nama = (p["Nama Lengkap"] || p.nama || "").toLowerCase();
-            const hp = String(p["No. Hp"] || p.noHp || "").toLowerCase();
+            const nama = (p.nama || "").toLowerCase();
+            const hp = String(p.no_hp || "").toLowerCase();
             return nama.includes(query) || hp.includes(query);
         });
         renderTable(filtered);
+    }
+
+    // 5. EXPORT TO EXCEL (.XLSX)
+    function exportToExcel() {
+        if (listPeserta.length === 0) {
+            alert("Tidak ada data untuk di-export!");
+            return;
+        }
+
+        const excelData = listPeserta.map((p, idx) => ({
+            "No": idx + 1,
+            "Waktu Daftar": p.created_at,
+            "Nama Lengkap": p.nama,
+            "Jenis Kelamin": p.jenis_kelamin,
+            "No HP": p.no_hp,
+            "Email": p.email,
+            "Kecamatan": p.kecamatan,
+            "Kelurahan": p.kelurahan,
+            "Pengurus": p.pengurus,
+            "Jabatan": p.jabatan,
+            "Status Kehadiran": p.status
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Pendaftaran");
+
+        XLSX.writeFile(workbook, "Data_Pendaftaran_PSI_Jaktim.xlsx");
     }
 </script>
 
