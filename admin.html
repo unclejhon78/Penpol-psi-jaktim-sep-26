@@ -18,6 +18,7 @@
         }
 
         .container {
+            display: none;
             max-width: 1050px;
             margin: 0 auto;
             background: #ffffff;
@@ -26,10 +27,7 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
 
-        h2 {
-            color: #e31b23;
-            margin-bottom: 5px;
-        }
+        h2 { color: #e31b23; margin-bottom: 5px; }
 
         .header-bar {
             display: flex;
@@ -40,23 +38,18 @@
             gap: 10px;
         }
 
-        .search-box {
-            display: flex;
-            gap: 10px;
-        }
+        .search-box { display: flex; gap: 10px; }
 
-        input[type="text"] {
+        input[type="text"], input[type="email"], input[type="password"] {
             padding: 8px 12px;
             border: 1px solid #ccc;
             border-radius: 5px;
-            width: 230px;
+            font-size: 14px;
         }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
+        .search-box input[type="text"] { width: 230px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
 
         th, td {
             border: 1px solid #ddd;
@@ -65,9 +58,7 @@
             font-size: 14px;
         }
 
-        th {
-            background-color: #f8f9fa;
-        }
+        th { background-color: #f8f9fa; }
 
         .btn {
             padding: 6px 12px;
@@ -80,6 +71,7 @@
         .btn-success { background-color: #28a745; color: white; }
         .btn-primary { background-color: #0056b3; color: white; }
         .btn-excel { background-color: #1d6f42; color: white; }
+        .btn-danger { background-color: #dc3545; color: white; }
         .btn-disabled { background-color: #6c757d; color: white; cursor: not-allowed; }
 
         .badge {
@@ -93,20 +85,76 @@
 
         .badge-success { background-color: #28a745; }
         .badge-warning { background-color: #ffc107; color: #333; }
+
+        /* MODAL LOGIN */
+        .login-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .login-card {
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 360px;
+            text-align: center;
+        }
+
+        .login-card h3 { margin-top: 0; color: #e31b23; }
+
+        .login-card input {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            box-sizing: border-box;
+        }
+
+        .login-card button { width: 100%; padding: 10px; margin-top: 10px; }
+
+        .error-msg {
+            color: red;
+            font-size: 13px;
+            display: none;
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
 
-<div class="container">
+<!-- MODAL LOGIN ADMIN -->
+<div id="loginModal" class="login-overlay">
+    <div class="login-card">
+        <h3>Login Admin Penpol</h3>
+        <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Masukkan Username (Email) dan Password resmi.</p>
+        <form onsubmit="handleLogin(event)">
+            <input type="email" id="adminEmail" placeholder="Email Admin..." required>
+            <input type="password" id="adminPassword" placeholder="Password..." required>
+            <div id="errorMsg" class="error-msg">Login gagal! Periksa email/password.</div>
+            <button type="submit" id="btnLogin" class="btn btn-primary">Masuk</button>
+        </form>
+    </div>
+</div>
+
+<!-- HALAMAN ADMIN UTAMA -->
+<div id="adminContent" class="container">
     <div class="header-bar">
         <div>
             <h2>Portal Kehadiran Registrasi Ulang</h2>
-            <small>Database Supabase Real-Time</small>
+            <small>Database Supabase Real-Time (Single Device Session)</small>
         </div>
         <div class="search-box">
             <input type="text" id="searchInput" onkeyup="filterData()" placeholder="Cari nama / no HP...">
             <button id="btnRefresh" class="btn btn-primary" onclick="loadData()">Refresh Data</button>
             <button class="btn btn-excel" onclick="exportToExcel()">Export Excel</button>
+            <button class="btn btn-danger" onclick="handleLogout()">Logout</button>
         </div>
     </div>
 
@@ -131,14 +179,102 @@
 </div>
 
 <script>
-    // CONFIG SUPABASE (GANTI SESUAI PROJECT SUPABASE KAMU)
+    // CONFIG SUPABASE
     const SUPABASE_URL = "https://egjmalhtyxtbmkplgrxu.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_BlAodQ8yw8NBX20vVhaTRA__wyTK_64";
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let listPeserta = [];
+    let myDeviceToken = localStorage.getItem('device_token');
 
-    // 1. AMBIL DATA DARI SUPABASE
+    // Buat token unik device jika belum ada
+    if (!myDeviceToken) {
+        myDeviceToken = 'device_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+        localStorage.setItem('device_token', myDeviceToken);
+    }
+
+    // 1. CEK SESI LOGIN DAN VALIDASI DEVICE
+    document.addEventListener('DOMContentLoaded', async () => {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        
+        if (session) {
+            const isValidDevice = await checkSingleDeviceSession(session.user.id);
+            if (isValidDevice) {
+                showAdminPanel();
+            } else {
+                alert("Akun ini baru saja diakses dari Device/Browser lain! Anda dikeluarkan.");
+                await supabaseClient.auth.signOut();
+            }
+        }
+    });
+
+    // 2. FUNGSI CEK SINGLE DEVICE
+    async function checkSingleDeviceSession(userId) {
+        const { data, error } = await supabaseClient
+            .from('active_sessions')
+            .select('device_token')
+            .eq('user_id', userId)
+            .single();
+
+        if (data && data.device_token !== myDeviceToken) {
+            return false; // Ada device lain yang sedang memakai akun
+        }
+        return true;
+    }
+
+    // 3. PROSES LOGIN & DAFTARKAN DEVICE SEKARANG
+    async function handleLogin(e) {
+        e.preventDefault();
+        const email = document.getElementById('adminEmail').value;
+        const password = document.getElementById('adminPassword').value;
+        const errorMsg = document.getElementById('errorMsg');
+        const btnLogin = document.getElementById('btnLogin');
+
+        btnLogin.disabled = true;
+        btnLogin.innerText = "Memproses...";
+        errorMsg.style.display = 'none';
+
+        try {
+            const { data, error } = await supabaseClient.auth.signInWithPassword({
+                email: email,
+                password: password,
+            });
+
+            if (error) throw error;
+
+            // Catat device ini sebagai device aktif tunggal
+            await supabaseClient
+                .from('active_sessions')
+                .upsert({ 
+                    user_id: data.user.id, 
+                    device_token: myDeviceToken,
+                    updated_at: new Date().toISOString()
+                });
+
+            showAdminPanel();
+        } catch (err) {
+            errorMsg.innerText = "Login gagal: " + err.message;
+            errorMsg.style.display = 'block';
+        } finally {
+            btnLogin.disabled = false;
+            btnLogin.innerText = "Masuk";
+        }
+    }
+
+    // 4. SHOW ADMIN PANEL
+    function showAdminPanel() {
+        document.getElementById('loginModal').style.display = 'none';
+        document.getElementById('adminContent').style.display = 'block';
+        loadData();
+    }
+
+    // 5. LOGOUT
+    async function handleLogout() {
+        await supabaseClient.auth.signOut();
+        location.reload();
+    }
+
+    // 6. LOAD DATA PESERTA
     async function loadData() {
         const tableBody = document.getElementById('tableBody');
         const btnRefresh = document.getElementById('btnRefresh');
@@ -147,6 +283,17 @@
         btnRefresh.innerText = "Memuat...";
 
         try {
+            // Cek kembali status device sebelum ambil data
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                const isValid = await checkSingleDeviceSession(session.user.id);
+                if (!isValid) {
+                    alert("Sesi berakhir karena akun dipakai di Device lain!");
+                    handleLogout();
+                    return;
+                }
+            }
+
             const { data, error } = await supabaseClient
                 .from('pendaftaran')
                 .select('*')
@@ -165,9 +312,7 @@
         }
     }
 
-    document.addEventListener('DOMContentLoaded', loadData);
-
-    // 2. RENDER TABLE
+    // 7. RENDER TABEL
     function renderTable(data) {
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
@@ -216,7 +361,7 @@
         });
     }
 
-    // 3. MARK ATTENDANCE
+    // 8. VERIFIKASI KEHADIRAN
     async function markAttendance(id, namaPeserta) {
         if (confirm(`Konfirmasi kehadiran untuk: ${namaPeserta}?`)) {
             const btn = document.getElementById(`btn-${id}`);
@@ -250,7 +395,7 @@
         }
     }
 
-    // 4. FILTER SEARCH
+    // 9. FILTER SEARCH
     function filterData() {
         const query = document.getElementById('searchInput').value.toLowerCase();
         const filtered = listPeserta.filter(p => {
@@ -261,7 +406,7 @@
         renderTable(filtered);
     }
 
-    // 5. EXPORT TO EXCEL (.XLSX)
+    // 10. EXPORT TO EXCEL
     function exportToExcel() {
         if (listPeserta.length === 0) {
             alert("Tidak ada data untuk di-export!");
