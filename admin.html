@@ -397,14 +397,20 @@
 
     // 9. FILTER SEARCH
     function filterData() {
-        const query = document.getElementById('searchInput').value.toLowerCase();
-        const filtered = listPeserta.filter(p => {
-            const nama = (p.nama || "").toLowerCase();
-            const hp = String(p.no_hp || "").toLowerCase();
-            return nama.includes(query) || hp.includes(query);
-        });
-        renderTable(filtered);
-    }
+    const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    const filtered = listPeserta.filter(p => {
+        const nama = (p.nama || "").toLowerCase();
+        const hp = String(p.no_hp || "").toLowerCase();
+        const kec = (p.kecamatan || "").toLowerCase();
+        const kel = (p.kelurahan || "").toLowerCase();
+
+        return nama.includes(query) || 
+               hp.includes(query) || 
+               kec.includes(query) || 
+               kel.includes(query);
+    });
+    renderTable(filtered);
+}
 
     // 10. EXPORT TO EXCEL
     function exportToExcel() {
